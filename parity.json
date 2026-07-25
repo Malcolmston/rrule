@@ -1,0 +1,10 @@
+{
+  "repo": "rrule",
+  "upstream": "dateutil/dateutil",
+  "parityBefore": "0%",
+  "parityAfter": "99.6%",
+  "upstreamCasesSynced": 256,
+  "gapsFound": 1,
+  "gapsClosed": 0,
+  "asOf": "2026-07-24"
+}
