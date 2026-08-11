@@ -288,18 +288,37 @@ Three consequences worth knowing:
 
 - `UNTIL` is compared as an **instant**. RFC 5545 requires `UNTIL` to be UTC
   when `DTSTART` is zoned, and this port follows that rule.
-- A wall clock that a spring-forward transition removed is resolved with the
-  offset in effect *before* the transition, which is what RFC 5545 §3.3.5
-  prescribes and what `time.Date` does.
-- Because that can make two distinct wall clocks (02:00 and 03:00) name the same
-  instant for an `FREQ=HOURLY` rule crossing the gap, an occurrence identical to
-  the one just emitted is dropped. No instant is ever produced twice, and none
-  is skipped.
+- A wall clock that occurs **twice** — the hour a fall-back transition repeats —
+  refers to the first of the two, i.e. the offset in effect before the
+  transition. That is RFC 5545 §3.3.5, and it is what `time.Date` does.
+- A wall clock that does **not occur** — the hour a spring-forward transition
+  removes — produces no occurrence at all. RFC 5545 §3.3.10 says such instances
+  "MUST be ignored and MUST NOT be counted as part of the recurrence set", so a
+  daily 02:30 rule has no instance on the day its zone skips 02:30, and a
+  `COUNT` is not spent on it. This is also what keeps the stream strictly
+  increasing: `time.Date` renders a nonexistent wall clock at an *earlier*
+  instant, so an `FREQ=HOURLY` rule stepping through the gap would otherwise
+  emit an instant it had already produced, out of order.
+
+Occurrences are therefore always strictly increasing, and no instant is ever
+produced twice — which is what `Between`, `After` and `Before` need, since each
+is a single forward pass.
 
 ## Unbounded rules
 
 An RRULE with neither `COUNT` nor `UNTIL` describes an infinite series.
 
+- `AllLimit(n)` is the bounded form of `All()` and never returns — or
+  allocates — more than `n` occurrences. Reach for it whenever the rule text
+  came from somewhere you do not control: a `COUNT` or an `UNTIL` makes a rule
+  finite but not necessarily small, and `FREQ=SECONDLY;UNTIL=99991231T235959Z`
+  is a perfectly valid rule with some 2.5e11 occurrences that `All()` would
+  faithfully try to materialize. `Between` and `Iterator` are bounded the same
+  way, by an argument you supply.
+- `INTERVAL` is capped at 1000000 for the same reason. A larger value cannot
+  place a second occurrence before the engine's year-9999 ceiling under any
+  frequency, and used to overflow the day arithmetic into a negative
+  day-of-year index. `New` rejects it.
 - `All()` never hangs: on an unbounded rule it stops after
   `MaxAllOccurrences` (10000) occurrences and returns what it has. Treat a
   result of exactly `MaxAllOccurrences` as "probably truncated" — for rules that
